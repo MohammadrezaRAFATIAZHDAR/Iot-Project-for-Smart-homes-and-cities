@@ -1,0 +1,357 @@
+#include <DHTesp.h>
+#include <PubSubClient.h>
+#include <ESP8266WiFi.h>
+#include <WiFiClient.h>
+#include <ESP8266WebServer.h>
+#include <ESP8266mDNS.h>
+DHTesp dht;
+const char* ssid = "MohammadReza";
+const char* password = "ARMMR1375";
+
+// Set web server port number to 80
+WiFiServer server(80);
+
+// Variable to store the HTTP request
+String header;
+
+// Auxiliar variables to store the current output state
+String SWITCH1State = "off";
+String SWITCH2State = "off";
+String FAN1State = "off";
+String ACState = "off";
+String HEATERState = "off";
+String THState = "off";
+String SOILState = "off";
+
+// Assign output variables to GPIO pins
+const int SWITCH1 = D0; 
+const int SWITCH2 = D1; 
+const int FAN1    = D2;
+const int AC      = D3;
+const int HEATER  = D4;
+const int TH      = D5;
+const int SOIL    = D6;
+
+
+void setup() {
+  Serial.begin(115200);
+  dht.setup(D5, DHTesp::DHT11);
+  // Initialize the output variables as outputs
+  pinMode(SWITCH1, OUTPUT);
+  pinMode(SWITCH2, OUTPUT);
+  pinMode(FAN1,    OUTPUT);
+  pinMode(AC,      OUTPUT);
+  pinMode(HEATER,  OUTPUT);
+  pinMode(TH,      OUTPUT);
+  pinMode(SOIL,    OUTPUT);
+
+  // Set outputs to LOW
+  digitalWrite(SWITCH1, LOW);
+  digitalWrite(SWITCH2, LOW);
+  digitalWrite(FAN1,    LOW);
+  digitalWrite(AC,      LOW);
+  digitalWrite(HEATER,  LOW);
+  digitalWrite(TH,      LOW);
+  digitalWrite(SOIL,    LOW);
+
+  // Connect to Wi-Fi network with SSID and password
+  Serial.print("Connecting to ");
+  Serial.println(ssid);
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  // Print local IP address and start web server
+  Serial.println("");
+  Serial.println("WiFi connected.");
+  Serial.print("IP address: ");
+  Serial.println(WiFi.localIP());
+  server.begin();
+}
+
+void loop(){
+    //DHT11
+    float h = dht.getHumidity();
+    float t = dht.getTemperature();    
+    Serial.print("{\"humidity\": ");
+    Serial.print(h);
+    Serial.print(", \"temp\": ");
+    Serial.print(t);
+    Serial.print("}\n");
+    delay(2000);
+
+/*
+    if(t >= 33.00){
+      Serial.println("HEATER OFF");
+      HEATERState = "off";
+      digitalWrite(HEATER, LOW);
+      if (t >= 35.00){
+      Serial.println("A/C ON");
+      ACState = "on";
+      digitalWrite(AC, HIGH);
+      }
+    }
+    
+    else if(t <= 30.00){
+      Serial.println("A/C OFF");
+      ACState = "off";
+      digitalWrite(AC, LOW);
+      if(t <= 28.00){
+        Serial.println("HEATER ON");
+      HEATERState = "on";
+      digitalWrite(HEATER, HIGH);
+      }
+    }
+*/    
+  WiFiClient client = server.available();   // Listen for incoming clients
+
+  if (client) {     // If a new client connects,
+    
+    //float h = dht.getHumidity();
+    //float t = dht.getTemperature();    
+    Serial.print("{\"humidity\": ");
+    Serial.print(h);
+    Serial.print(", \"temp\": ");
+    Serial.print(t);
+    Serial.print("}\n");
+    delay(2000);
+
+/*
+    if(t >= 33.00){
+      Serial.println("HEATER OFF");
+      HEATERState = "off";
+      digitalWrite(HEATER, LOW);
+      if (t >= 35.00){
+      Serial.println("A/C ON");
+      ACState = "on";
+      digitalWrite(AC, HIGH);
+      }
+    }
+    
+    else if(t <= 30.00){
+      Serial.println("A/C OFF");
+      ACState = "off";
+      digitalWrite(AC, LOW);
+      if(t <= 28.00){
+        Serial.println("HEATER ON");
+      HEATERState = "on";
+      digitalWrite(HEATER, HIGH);
+      }
+    }
+
+*/
+    Serial.println("New Client.");          // print a message out in the serial port
+    String currentLine = "";                // make a String to hold incoming data from the client
+    while (client.connected()) {            // loop while the client's connected
+      if (client.available()) {             // if there's bytes to read from the client,
+        char c = client.read();             // read a byte, then
+        Serial.write(c);                    // print it out the serial monitor
+        header += c;
+        if (c == '\n') {                    // if the byte is a newline character
+          // if the current line is blank, you got two newline characters in a row.
+          // that's the end of the client HTTP request, so send a response:
+          if (currentLine.length() == 0) {
+            // HTTP headers always start with a response code (e.g. HTTP/1.1 200 OK)
+            // and a content-type so the client knows what's coming, then a blank line:
+            client.println("HTTP/1.1 200 OK");
+            client.println("Content-type:text/html");
+            client.println("Connection: close");
+            client.println();
+            
+            // turns the GPIOs on and off
+            if (header.indexOf("GET /SWITCH1/on") >= 0) {
+              Serial.println("GPIO 5 on");
+              SWITCH1State = "on";
+              digitalWrite(SWITCH1, HIGH);
+            } else if (header.indexOf("GET /SWITCH1/off") >= 0) {
+              Serial.println("GPIO 5 off");
+              SWITCH1State = "off";
+              digitalWrite(SWITCH1, LOW);
+            } else if (header.indexOf("GET /SWITCH2/on") >= 0) {
+              Serial.println("GPIO 4 on");
+              SWITCH2State = "on";
+              digitalWrite(SWITCH2, HIGH);
+            } else if (header.indexOf("GET /SWITCH2/off") >= 0) {
+              Serial.println("GPIO 4 off");
+              SWITCH2State = "off";
+              digitalWrite(SWITCH2, LOW);
+            }
+    
+////////////////////////////////FAN-1///////////////////////////////////////////////////////
+           if(header.indexOf("GET /FAN1/MANUAL/on") >= 0){
+             FAN1State = "on";
+             digitalWrite(FAN1, HIGH);
+           }else if (header.indexOf("GET /FAN1/MANUAL/off") >= 0){
+             FAN1State = "off";
+             digitalWrite(FAN1, LOW);
+
+           }
+
+//////////////////////////////HEATER/////////////////////////////////////////////////////
+           if(header.indexOf("GET /HEATER/MANUAL/on") >= 0){
+             HEATERState = "on";
+             digitalWrite(HEATER, HIGH);
+           }else if (header.indexOf("GET /HEATER/MANUAL/off") >= 0){
+             HEATERState = "off";
+             digitalWrite(HEATER, LOW);
+
+           }
+
+
+///////////////////////////////DOOR-1///////////////////////////////////////////////////////           
+//           if(header.indexOf("GET /DOOR1/LOCK/") >= 0){
+//             DOOR1State = "on";
+//             digitalWrite(DOOR1, HIGH);
+//           }else if (header.indexOf("GET /HEATER1/MANUAL/off") >= 0){
+//             HEATER1State = "off";
+//             digitalWrite(HEATER1, LOW);
+//
+//           }
+/*
+           if(header.indexOf("GET /AC/AUTO/on") >= 0){
+                float h = dht.getHumidity();
+                float t = dht.getTemperature();
+                if(t >= 33.00){
+                  Serial.println("HEATER OFF");
+                  HEATERState = "off";
+                  digitalWrite(HEATER, LOW);
+                    if (t >= 35.00){
+                       Serial.println("A/C ON");
+                       ACState = "on";
+                       digitalWrite(AC, HIGH);
+                    }
+                }
+    
+                else if(t <= 30.00){
+                  Serial.println("A/C OFF");
+                  ACState = "off";
+                  digitalWrite(AC, LOW);
+                  
+                  if(t <= 28.00){
+                    Serial.println("HEATER ON");
+                    HEATERState = "on";
+                    digitalWrite(HEATER, HIGH);
+                  }
+                }
+             }
+            else if (header.indexOf("GET /AC/MANUAL/") >= 0) {
+              //Serial.println("GPIO 5 on");
+                if (header.indexOf("GET /AC/MANUAL/on") >= 0){
+                  ACState = "on";
+                  digitalWrite(AC, HIGH);
+                }
+                else if(header.indexOf("GET /AC/MANUAL/off") >= 0){
+                  ACState = "off";
+                  digitalWrite(AC, LOW);
+                }
+              
+             }
+
+*/           
+             if(header.indexOf("GET /AC/AUTO/on") >= 0){
+                float h = dht.getHumidity();
+                float t = dht.getTemperature();
+                if(t >= 33.00){
+                  Serial.println("HEATER OFF");
+                  HEATERState = "off";
+                  digitalWrite(HEATER, LOW);
+                    if (t >= 35.00){
+                       Serial.println("A/C ON");
+                       ACState = "on";
+                       digitalWrite(AC, HIGH);
+                    }
+                }
+    
+                else if(t <= 30.00){
+                  Serial.println("A/C OFF");
+                  ACState = "off";
+                  digitalWrite(AC, LOW);
+                  
+                  if(t <= 28.00){
+                    Serial.println("HEATER ON");
+                    HEATERState = "on";
+                    digitalWrite(HEATER, HIGH);
+                  }
+                }
+             }
+            else if (header.indexOf("GET /AC/MANUAL/") >= 0) {
+              //Serial.println("GPIO 5 on");
+                if (header.indexOf("GET /AC/MANUAL/on") >= 0){
+                  ACState = "on";
+                  digitalWrite(AC, HIGH);
+                }
+                else if(header.indexOf("GET /AC/MANUAL/off") >= 0){
+                  ACState = "off";
+                  digitalWrite(AC, LOW);
+                }
+              
+             }
+
+                       
+            // Display the HTML web page
+            client.println("<!DOCTYPE html><html>");
+            client.println("<head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
+            client.println("<link rel=\"icon\" href=\"data:,\">");
+            // CSS to style the on/off buttons 
+            // Feel free to change the background-color and font-size attributes to fit your preferences
+            client.println("<style>html { font-family: Helvetica; display: inline-block; margin: 0px auto; text-align: center;}");
+            client.println(".button { background-color: #195B6A; border: none; color: white; padding: 16px 40px;");
+            client.println("text-decoration: none; font-size: 30px; margin: 2px; cursor: pointer;}");
+            client.println(".button2 {background-color: #77878A;}</style></head>");
+            
+            // Web Page Heading
+            client.println("<body><h1>KOSAR PROJECT ...</h1>");
+
+            client.println("<a href=\"/AC/on\"></a>");
+            client.println("<a href=\"/AC/MANUAL\"></a>");
+            client.println("<a href=\"/AC/MANUAL/on\"></a>");
+            client.println("<a href=\"/AC/MANUAL/off\"></a>");
+            client.println("<a href=\"/AC/AUTO/on\"></a>");
+            client.println("<a href=\"/FAN1/MANUAL/on\"></a>");
+            client.println("<a href=\"/FAN1/MANUAL/off\"></a>");
+            client.println("<a href=\"/HEATER/MANUAL/on\"></a>");
+            client.println("<a href=\"/HEATER/MANUAL/off\"></a>");
+            client.println("<p>Temperature : </p>");
+
+            
+            // Display current state, and ON/OFF buttons for GPIO 5  
+            client.println("<p>SWITCH-1 - State " + SWITCH1State + "</p>");
+            // If the output5State is off, it displays the ON button       
+            if (SWITCH1State=="off") {
+              client.println("<p><a href=\"/SWITCH1/on\"><button class=\"button\">ON</button></a></p>");
+            } else {
+              client.println("<p><a href=\"/SWITCH1/off\"><button class=\"button button2\">OFF</button></a></p>");
+            } 
+               
+            // Display current state, and ON/OFF buttons for GPIO 4  
+            client.println("<p>SWITCH-2 - State " + SWITCH2State + "</p>");
+            // If the output4State is off, it displays the ON button       
+            if (SWITCH2State=="off") {
+              client.println("<p><a href=\"/SWITCH2/on\"><button class=\"button\">ON</button></a></p>");
+            } else {
+              client.println("<p><a href=\"/SWITCH2/off\"><button class=\"button button2\">OFF</button></a></p>");
+            }
+            client.println("</body></html>");
+            
+            // The HTTP response ends with another blank line
+            client.println();
+            // Break out of the while loop
+            break;
+          } else { // if you got a newline, then clear currentLine
+            currentLine = "";
+          }
+        } else if (c != '\r') {  // if you got anything else but a carriage return character,
+          currentLine += c;      // add it to the end of the currentLine
+        }
+      }
+    }
+    // Clear the header variable
+    header = "";
+    // Close the connection
+    client.stop();
+    Serial.println("Client disconnected.");
+    Serial.println("");
+  }
+}
+
